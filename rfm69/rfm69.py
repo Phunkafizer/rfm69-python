@@ -33,19 +33,21 @@ def wait_for(condition, timeout=5, check_time=0.005):
 
 class RFM69(object):
     """ Interface for the RFM69 series of radio modules. """
-    def __init__(self, reset_pin=None, dio0_pin=None, spi_channel=None, config=None):
+    def __init__(self, reset_pin=None, dio0_pin=None, spi_bus=None, config=None, spi_device=0):
         """ Initialise the object and configure the receiver.
 
-            reset_pin -- the GPIO pin number which is attached to the reset pin of the RFM69
-            dio0_pin  -- the GPIO pin number which is attached to the DIO0 pin of the RFM69
-            spi_channel -- the SPI channel used by the RFM69
-            config    -- an instance of `RFM69Configuration`
+            reset_pin  -- the GPIO pin number which is attached to the reset pin of the RFM69
+            dio0_pin   -- the GPIO pin number which is attached to the DIO0 pin of the RFM69
+            spi_bus    -- the SPI bus used by the RFM69
+            config     -- an instance of `RFM69Configuration`
+            spi_device -- the SPI device used by the RFM69
         """
         self.log = logging.getLogger(__name__)
         self.reset_pin = reset_pin
         self.dio0_pin = dio0_pin
-        self.spi_channel = spi_channel
+        self.spi_bus = spi_bus
         self.config = config
+        self.spi_device = spi_device
         self.rx_restarts = 0
         self.init_gpio()
         self.init_spi()
@@ -60,7 +62,7 @@ class RFM69(object):
 
     def init_spi(self):
         self.spi = spidev.SpiDev()
-        self.spi.open(self.spi_channel, 0)
+        self.spi.open(self.spi_bus, self.spi_device)
         self.spi.bits_per_word = 8
         self.spi.max_speed_hz = 50000
 
