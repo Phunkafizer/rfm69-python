@@ -36,7 +36,7 @@ class RFM69(object):
     def __init__(self, reset_pin=None, dio0_pin=None, spi_bus=None, config=None, spi_device=0):
         """ Initialise the object and configure the receiver.
 
-            reset_pin  -- the GPIO pin number which is attached to the reset pin of the RFM69
+            reset_pin  -- the GPIO pin number which is attached to the reset pin of the RFM69, may remain None
             dio0_pin   -- the GPIO pin number which is attached to the DIO0 pin of the RFM69
             spi_bus    -- the SPI bus used by the RFM69
             config     -- an instance of `RFM69Configuration`
@@ -69,11 +69,12 @@ class RFM69(object):
     def reset(self):
         """ Reset the module, then check it's working. """
         self.log.debug("Initialising RFM...")
-        GPIO.setup(self.reset_pin, GPIO.OUT)
-        GPIO.output(self.reset_pin, 1)
-        sleep(0.05)
-        GPIO.setup(self.reset_pin, GPIO.IN)
-        sleep(0.05)
+        if self.reset_pin is not None:
+            GPIO.setup(self.reset_pin, GPIO.OUT)
+            GPIO.output(self.reset_pin, 1)
+            sleep(0.05)
+            GPIO.setup(self.reset_pin, GPIO.IN)
+            sleep(0.05)
         if (self.spi_read(Register.VERSION) != 0x24):
             raise RadioError("Failed to initialise RFM69")
 
