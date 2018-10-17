@@ -7,7 +7,7 @@ import RPi.GPIO as GPIO
 import spidev
 
 from .configuration import IRQFlags1, IRQFlags2, OpMode, Temperature1, RSSIConfig, DioMapping1
-from .constants import Register, RF
+from .constants import Register, RF, HW
 
 
 class RadioError(Exception):
@@ -145,7 +145,7 @@ class RFM69(object):
                 self.rx_restarts += 1
             if timeout is not None and time() - start > timeout:
                 break
-            if self.dio0_event.wait(1):
+            if self.dio0_event.wait(0.5):
                 dio0_fired = True
                 break
 
@@ -153,6 +153,7 @@ class RFM69(object):
 
         if dio0_fired:
             rssi = self.get_rssi()
+            afc = self.get_afc()
             
             if self.config.packet_config_1.variable_length:
                 #variable length packet format;
@@ -175,13 +176,14 @@ class RFM69(object):
                     wait_for(lambda: self.read_register(IRQFlags2).fifo_not_empty)
                     data.append(self.spi_read(Register.FIFO))
                     data_length -= 1
+                
                 self.set_mode(OpMode.Standby, wait=False)
             else:
                 self.set_mode(OpMode.Standby, wait=False)
                 data = self.spi_burst_read(Register.FIFO, data_length)            
 
-            self.log.info("Received message: %s, RSSI: %s", data, rssi)
-            return (bytearray(data), rssi)
+            self.log.info("Received message: %s, RSSI: %s dB, AFC: %s kHz", data, rssi, afc)
+            return (bytearray(data), rssi, afc)
         else:
             return None
 
@@ -244,6 +246,16 @@ class RFM69(object):
     def get_rssi(self):
         """ Get the current RSSI in dBm. """
         return -(self.spi_read(Register.RSSIVALUE) / 2)
+        
+    def get_afc(self):
+        """ Get last auto frequency control value
+            returns value in kHz
+        """
+        afc = self.spi_read(Register.FEIMSB) << 8
+        afc = afc | self.spi_read(Register.FEILSB)
+        if afc >= 0x8000:
+            afc = afc - 0x10000
+        return round(afc * HW.FSTEP / 1000, 2)
 
     def get_rssi_threshold(self):
         """ Get the current RSSI threshold in dBm. """

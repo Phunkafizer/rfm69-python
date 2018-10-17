@@ -38,6 +38,21 @@ class DataModulation(RegisterValue):
         self.modulation_type = self.TypeFSK
         self.modulation_shaping = 0b00
 
+        
+class AfcFei(RegisterValue):
+    REGISTER = Register.AFCFEI
+    FORMAT = [(False, 1), ('fei_done', 1), ('fei_start', 1), ('afc_done', 1),
+             ('afc_autoclear_on', 1), ('afc_auto_on', 1), ('afc_clear', 1), ('afc_start', 1)]
+             
+    def __init__(self):
+        self.fei_done = False
+        self.fei_start = False
+        self.afc_done = True
+        self.afc_autoclear_on = False
+        self.afc_auto_on = False
+        self.afc_clear = False
+        self.afc_start = False
+
 class RSSIConfig(RegisterValue):
     REGISTER = 0x23
     FORMAT = [(False, 6), ('rssi_done', 1), ('rssi_start', 1)]
@@ -204,7 +219,8 @@ class RFM69Configuration(object):
         self.ocp = RF.OCP_ON | RF.OCP_TRIM_95
         self.lna = RF.LNA_ZIN_200
         self.rx_bw = RF.RXBW_DCCFREQ_010 | RF.RXBW_MANT_24 | RF.RXBW_EXP_5
-        self.afc_fei = RF.AFCFEI_AFCAUTO_OFF | RF.AFCFEI_AFCAUTOCLEAR_OFF
+        self.rx_afc_bw = RF.RXBW_DCCFREQ_010 | RF.RXBW_MANT_24 | RF.RXBW_EXP_5
+        self.afc_fei = AfcFei()
 
         self.dio_mapping_1 = DioMapping1()
         self.dio_mapping_2 = DioMapping2()
@@ -252,7 +268,8 @@ class RFM69Configuration(object):
         regs[Register.OCP] = self.ocp
         regs[Register.LNA] = self.lna
         regs[Register.RXBW] = self.rx_bw
-        regs[Register.AFCFEI] = self.afc_fei
+        regs[Register.AFCBW] = self.rx_afc_bw
+        regs[Register.AFCFEI] = self.afc_fei.pack()
         regs[Register.DIOMAPPING1] = self.dio_mapping_1.pack()
         regs[Register.DIOMAPPING2] = self.dio_mapping_2.pack()
         regs[Register.RSSITHRESH] = self.rssi_threshold
