@@ -118,7 +118,30 @@ class DioMapping1(RegisterValue):
         self.dio2 = self.DIOMAPPING_00
         self.dio3 = self.DIOMAPPING_00
 
+class DioMapping2(RegisterValue):
+    REGISTER = 0x26
+    FORMAT = [('dio4', 2), ('dio5', 2), (False, 1), ('clkout', 3)]
+    
+    DIOMAPPING_00 = 0
+    DIOMAPPING_01 = 1
+    DIOMAPPING_10 = 2
+    DIOMAPPING_11 = 3
+    
+    CLKOUT_1 = 0
+    CLKOUT_2 = 1
+    CLKOUT_4 = 2
+    CLKOUT_8 = 3
+    CLKOUT_16 = 4
+    CLKOUT_32 = 5
+    CLKOUT_RC = 6
+    CLKOUT_OFF = 7
+    
+    def __init__(self):
+        self.dio4 = self.DIOMAPPING_00
+        self.dio5 = self.DIOMAPPING_00
+        self.clkout = self.CLKOUT_OFF
 
+        
 class RFM69Configuration(object):
     """ An object to hold to represent the configuration of the RFM69. There's quite a bit of it.
 
@@ -150,7 +173,7 @@ class RFM69Configuration(object):
         self.afc_fei = RF.AFCFEI_AFCAUTO_OFF | RF.AFCFEI_AFCAUTOCLEAR_OFF
 
         self.dio_mapping_1 = DioMapping1()
-        self.dio_mapping_2 = RF.DIOMAPPING2_CLKOUT_OFF
+        self.dio_mapping_2 = DioMapping2()
 
         self.rssi_threshold = 200
 
@@ -194,7 +217,7 @@ class RFM69Configuration(object):
         regs[Register.RXBW] = self.rx_bw
         regs[Register.AFCFEI] = self.afc_fei
         regs[Register.DIOMAPPING1] = self.dio_mapping_1.pack()
-        regs[Register.DIOMAPPING2] = self.dio_mapping_2
+        regs[Register.DIOMAPPING2] = self.dio_mapping_2.pack()
         regs[Register.RSSITHRESH] = self.rssi_threshold
         regs[Register.RXTIMEOUT1] = self.rx_timeout_1
         regs[Register.RXTIMEOUT2] = self.rx_timeout_2
