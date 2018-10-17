@@ -6,7 +6,7 @@ import logging
 import RPi.GPIO as GPIO
 import spidev
 
-from .configuration import IRQFlags1, IRQFlags2, OpMode, Temperature1, RSSIConfig
+from .configuration import IRQFlags1, IRQFlags2, OpMode, Temperature1, RSSIConfig, DioMapping1
 from .constants import Register, RF
 
 
@@ -78,9 +78,9 @@ class RFM69(object):
         if (self.spi_read(Register.VERSION) != 0x24):
             raise RadioError("Failed to initialise RFM69")
 
-    def payload_ready_interrupt(self, pin):
-        self.log.debug("Payload Ready Interrupt")
-        self.packet_ready_event.set()
+    def dio0_interrupt(self, pin):
+        self.log.debug("DIO0 Interrupt")
+        self.dio0_event.set()
 
     def write_config(self):
         """ Write the full configuration to the module. This is called on
@@ -94,19 +94,39 @@ class RFM69(object):
 
         self.log.debug("%s configuration registers written.", count)
 
-    def wait_for_packet(self, timeout=None):
+    def wait_for_packet(self, timeout=None, packetlength=None):
         """ Put the module in receive mode, and block until we receive a packet.
             Returns a tuple of (packet, rssi), or None if there was a timeout
 
             timeout -- the amount of time to wait for before returning if no
                        packets were received.
+					   
+            packetlength -- used for unlimited length packet format.
+                            length is not taken from payload.
+                            when set, variable_length flag has to be set to False
+                            and payload_length to 0
         """
         start = time()
-        self.packet_ready_event = Event()
+        self.dio0_event = Event()
         self.rx_restarts = 0
-        GPIO.add_event_detect(self.dio0_pin, GPIO.RISING, callback=self.payload_ready_interrupt)
+        
+        """
+            large packet handling:
+            when payloadsize exceeds FIFO size, data has to be read from FIFO before
+            complete frame has been received. For large packets IRQ is already fired
+            after receiving SyncAddress
+        """
+        large_packet = (self.config.payload_length > 64) or (packetlength is not None)
+        
+        if large_packet:
+            self.config.dio_mapping_1.dio0 = DioMapping1.DIOMAPPING_10 #in RX: SyncAddress
+        else:
+            self.config.dio_mapping_1.dio0 = DioMapping1.DIOMAPPING_01 #in RX: PayloadReady
+            
+        self.spi_write(self.config.dio_mapping_1.REGISTER, self.config.dio_mapping_1.pack())
+        GPIO.add_event_detect(self.dio0_pin, GPIO.RISING, callback=self.dio0_interrupt)
         self.set_mode(OpMode.RX)
-        packet_received = False
+        dio0_fired = False
         while True:
             irqflags = self.read_register(IRQFlags1)
             if not irqflags.mode_ready:
@@ -125,17 +145,40 @@ class RFM69(object):
                 self.rx_restarts += 1
             if timeout is not None and time() - start > timeout:
                 break
-            if self.packet_ready_event.wait(1):
-                packet_received = True
+            if self.dio0_event.wait(1):
+                dio0_fired = True
                 break
 
         GPIO.remove_event_detect(self.dio0_pin)
-        self.set_mode(OpMode.Standby, wait=False)
 
-        if packet_received:
+        if dio0_fired:
             rssi = self.get_rssi()
-            data_length = self.spi_read(Register.FIFO)
-            data = self.spi_burst_read(Register.FIFO, data_length)
+            
+            if self.config.packet_config_1.variable_length:
+                #variable length packet format;
+                #first byte in payload is length byte
+                if large_packet:
+                    #if large_packet, wait for 1st byte to be arrived
+                    wait_for(lambda: self.read_register(IRQFlags2).fifo_not_empty)
+                data_length = self.spi_read(Register.FIFO)
+            else:
+                if packetlength is not None:
+                    #unlimited length packet format
+                    data_length = packetlength
+                else:
+                    #fixed length packet format
+                    data_length = self.config.payload_length
+                    
+            if large_packet:
+                data = []
+                while data_length > 0:
+                    wait_for(lambda: self.read_register(IRQFlags2).fifo_not_empty)
+                    data.append(self.spi_read(Register.FIFO))
+                    data_length -= 1
+                self.set_mode(OpMode.Standby, wait=False)
+            else:
+                self.set_mode(OpMode.Standby, wait=False)
+                data = self.spi_burst_read(Register.FIFO, data_length)            
 
             self.log.info("Received message: %s, RSSI: %s", data, rssi)
             return (bytearray(data), rssi)
