@@ -1,5 +1,8 @@
 from enum import Enum
 
+class HW():
+    FXOSC = 32E6
+    FSTEP = FXOSC / (1<<19)
 
 class Register(Enum):
     FIFO          = 0x00

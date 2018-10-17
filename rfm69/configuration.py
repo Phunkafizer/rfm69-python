@@ -1,7 +1,8 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 from collections import OrderedDict
-from .constants import Register, RF
+from .constants import Register, RF, HW
 from .register_value import RegisterValue
+from .register_area import RegisterArea
 
 
 class OpMode(RegisterValue):
@@ -140,8 +141,47 @@ class DioMapping2(RegisterValue):
         self.dio4 = self.DIOMAPPING_00
         self.dio5 = self.DIOMAPPING_00
         self.clkout = self.CLKOUT_OFF
+        
+        
+class Frequency(RegisterArea):
+    BASEREGISTER = Register.FRFMSB
+    VALUES = []
+    
+    def __init__(self):
+        self.VALUES.append(RF.FRFMSB_915)
+        self.VALUES.append(RF.FRFMID_915)
+        self.VALUES.append(RF.FRFLSB_915)
+        
+    def set_mhz(self, MHz):
+        fword = int(round(MHz * 1E6 / HW.FSTEP))
+        self.set_word(fword)
 
         
+class Bitrate(RegisterArea):
+    BASEREGISTER = Register.BITRATEMSB
+    VALUES = []
+    
+    def __init__(self):
+        self.VALUES.append(RF.BITRATEMSB_4800)
+        self.VALUES.append(RF.BITRATELSB_4800)
+        
+    def set_bps(self, bps):
+        rateword = int(round(HW.FXOSC / bps))
+        self.set_word(rateword)
+        
+
+class Deviation(RegisterArea):
+    BASEREGISTER = Register.FDEVMSB
+    VALUES = []
+    
+    def __init__(self):
+        self.VALUES.append(RF.FDEVMSB_5000)
+        self.VALUES.append(RF.FDEVLSB_5000)
+        
+    def set_khz(self, khz):
+        devword = int(round(khz * 1000 / HW.FSTEP))
+        self.set_word(devword)
+
 class RFM69Configuration(object):
     """ An object to hold to represent the configuration of the RFM69. There's quite a bit of it.
 
@@ -152,15 +192,9 @@ class RFM69Configuration(object):
         self.opmode = OpMode()
         self.data_modulation = DataModulation()
 
-        self.bitrate_msb = RF.BITRATEMSB_4800
-        self.bitrate_lsb = RF.BITRATELSB_4800
-
-        self.fdev_msb = RF.FDEVMSB_5000
-        self.fdev_lsb = RF.FDEVLSB_5000
-
-        self.frf_msb = RF.FRFMSB_915
-        self.frf_mid = RF.FRFMID_915
-        self.frf_lsb = RF.FRFLSB_915
+        self.bitrate = Bitrate()
+        self.fdev = Deviation()
+        self.frf = Frequency()
 
         self.afc_ctl = RF.AFCLOWBETA_OFF
 
@@ -202,13 +236,16 @@ class RFM69Configuration(object):
         regs = OrderedDict()
         regs[Register.OPMODE] = self.opmode.pack()
         regs[Register.DATAMODUL] = self.data_modulation.pack()
-        regs[Register.BITRATEMSB] = self.bitrate_msb
-        regs[Register.BITRATELSB] = self.bitrate_lsb
-        regs[Register.FDEVMSB] = self.fdev_msb
-        regs[Register.FDEVLSB] = self.fdev_lsb
-        regs[Register.FRFMSB] = self.frf_msb
-        regs[Register.FRFMID] = self.frf_mid
-        regs[Register.FRFLSB] = self.frf_lsb
+
+        for register, value in self.bitrate.pack().iteritems():
+            regs[register] = value
+        
+        for register, value in self.fdev.pack().iteritems():
+            regs[register] = value
+            
+        for register, value in self.frf.pack().iteritems():
+            regs[register] = value
+            
         regs[Register.AFCCTRL] = self.afc_ctl
         regs[Register.PALEVEL] = self.pa_level
         regs[Register.PARAMP] = self.pa_ramp
